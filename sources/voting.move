@@ -58,31 +58,54 @@ module module_address::voting {
     }
 
     #[test(admin = @0x123)]
-    public entry fun test_register(admin: signer) {
-        account::create_account_for_test(signer::address_of(&admin));
+    public entry fun test_register(admin: &signer) acquires Candidate {
+        register(admin);
 
-        register(&admin);
-        // assert details
+        let admin_address = signer::address_of(admin);
+        let candidate = borrow_global_mut<Candidate>(admin_address);
+        
+        assert!(table_with_length::length(&mut candidate.votes) == 0,4);
     }
+
+    #[test(admin = @0x123, candidate1 = @0x321)]
+    public entry fun test_vote(admin: &signer,candidate1: &signer) acquires Candidate,Voter {
+        register(candidate1);
+        
+        let admin_address = signer::address_of(admin);
+        let candidate1_address = signer::address_of(candidate1);
+
+        vote(admin,candidate1_address);
+
+        let admin_vote = borrow_global_mut<Voter>(admin_address);
+        assert!(admin_vote.candidate == candidate1_address, 3);
+
+        let candidate1_results = borrow_global_mut<Candidate>(candidate1_address);
+        
+        assert!(table_with_length::length(&mut candidate1_results.votes) == 1, 4);
+        assert!(table_with_length::borrow(&mut candidate1_results.votes, 1).owner == admin_address, 5);
+
+        // be sure admin is not candidate and candidate1 vote is not created
+        assert!(!exists<Candidate>(admin_address),6);
+        assert!(!exists<Voter>(candidate1_address),7);
+
+    }   
 
     #[test(admin = @0x123)]
     #[expected_failure(abort_code = EALREADY_REGISTERED)]
-    public entry fun test_register_twice(admin: signer) {
-        account::create_account_for_test(signer::address_of(&admin));
-
-        register(&admin);
-        register(&admin);
+    public entry fun test_register_twice(admin: &signer) {
+        register(admin);
+        register(admin);
     }
 
     #[test(admin = @0x123, not_candidate = @0x321)]
     #[expected_failure(abort_code = ECANDIDATE_NOT_FOUND)]
-    public entry fun vote_to_unregistered_candidate(admin: &signer,not_candidate: &signer) acquires Candidate {
+    public entry fun test_vote_to_not_candidate(admin: &signer,not_candidate: &signer) acquires Candidate {
         vote(admin,signer::address_of(not_candidate));
     }
 
     #[test(admin = @0x123, candidate1 = @0x321, candidate2 = @0x333)]
     #[expected_failure(abort_code = EALREADY_VOTED)]
-    public entry fun vote_twice(admin: &signer,candidate1: &signer, candidate2: &signer) acquires Candidate {
+    public entry fun test_vote_twice(admin: &signer,candidate1: &signer, candidate2: &signer) acquires Candidate {
         register(candidate1);
         register(candidate2);
         
@@ -93,5 +116,5 @@ module module_address::voting {
         vote(admin,candidate2_address);
     }   
 
-    // add tests for success scenarios
+
 }
